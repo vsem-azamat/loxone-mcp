@@ -504,11 +504,40 @@ func (c *Client) Logout(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := cn.command(ctx, "jdev/sys/killtoken/"+h+"/"+url.PathEscape(tf.User), "jdev/sys/killtoken/<hash>/<user>"); err != nil {
+	// The Miniserver revokes the token this socket was authenticated with and closes the
+	// socket instead of answering. A closed socket can also mean the command never arrived,
+	// so the token counts as revoked only when a new connection is refused with it (401).
+	_, err = cn.command(ctx, "jdev/sys/killtoken/"+h+"/"+url.PathEscape(tf.User), "jdev/sys/killtoken/<hash>/<user>")
+	var ce *CodeError
+	if err != nil && (errors.As(err, &ce) || ctx.Err() != nil) {
 		return err
+	}
+	if err != nil {
+		if err := c.checkRevoked(ctx, wsURL, tf); err != nil {
+			return err
+		}
 	}
 	c.tokens.clear(c.cfg.User)
 	return nil
+}
+
+// checkRevoked connects with the token again: a 401 proves it was revoked.
+func (c *Client) checkRevoked(ctx context.Context, wsURL string, tf tokenFile) error {
+	cn, err := dial(ctx, wsURL, &websocket.DialOptions{HTTPClient: c.cfg.HTTPClient, Subprotocols: []string{"remotecontrol"}}, c.log, state.New(nil))
+	if err != nil {
+		return fmt.Errorf("could not check that the token was revoked: %w", err)
+	}
+	defer cn.close()
+	err = c.authWithToken(ctx, cn, tf)
+	var ce *CodeError
+	switch {
+	case errors.As(err, &ce) && ce.Code == 401:
+		return nil
+	case err == nil:
+		return errors.New("the token is still valid: the Miniserver did not revoke it")
+	default:
+		return fmt.Errorf("could not check that the token was revoked: %w", err)
+	}
 }
 
 // errorCategory says what went wrong without the error text, which can name the relay host,
