@@ -1,0 +1,5 @@
+.worktrees/
+/dist/
+/loxone-mcp
+*.test
+*.out
