@@ -504,8 +504,13 @@ func (c *Client) Logout(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// The Miniserver revokes the token this socket was authenticated with and closes the
+	// socket instead of answering; only an explicit error code is a failure.
 	if _, err := cn.command(ctx, "jdev/sys/killtoken/"+h+"/"+url.PathEscape(tf.User), "jdev/sys/killtoken/<hash>/<user>"); err != nil {
-		return err
+		var ce *CodeError
+		if errors.As(err, &ce) || ctx.Err() != nil {
+			return err
+		}
 	}
 	c.tokens.clear(c.cfg.User)
 	return nil

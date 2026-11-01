@@ -284,7 +284,9 @@ func (s *Server) handle(ctx context.Context, c *websocket.Conn) {
 				}
 			}
 			s.mu.Unlock()
-			reply("", 200)
+			// like a real Miniserver: the socket of the killed token is closed, unanswered
+			_ = c.Close(websocket.StatusNormalClosure, "normally closed")
+			return
 		case !authed:
 			reply("", 400)
 		case cmd == "jdev/sps/LoxAPPversion3":
