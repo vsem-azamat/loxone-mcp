@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // tokenFile is the cached JSON Web Token, so a restart authenticates without the password and
@@ -19,12 +20,20 @@ type tokenFile struct {
 }
 
 type tokenStore struct {
-	path string // "" keeps the token in memory only
+	path     string // "" keeps the token in memory only
+	readOnly bool   // use the cached token but never write or refresh it
+	mu       sync.Mutex
+	mem      tokenFile
 }
 
-func (s tokenStore) load(user string) tokenFile {
+func (s *tokenStore) load(user string) tokenFile {
 	empty := tokenFile{User: user}
 	if s.path == "" {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.mem.User == user {
+			return s.mem
+		}
 		return empty
 	}
 	b, err := os.ReadFile(s.path)
@@ -42,8 +51,14 @@ func (s tokenStore) load(user string) tokenFile {
 	return t
 }
 
-func (s tokenStore) save(t tokenFile) error {
+func (s *tokenStore) save(t tokenFile) error {
+	if s.readOnly {
+		return nil
+	}
 	if s.path == "" {
+		s.mu.Lock()
+		s.mem = t
+		s.mu.Unlock()
 		return nil
 	}
 	dir := filepath.Dir(s.path)
@@ -79,7 +94,7 @@ func (s tokenStore) save(t tokenFile) error {
 	return nil
 }
 
-func (s tokenStore) clear(user string) {
+func (s *tokenStore) clear(user string) {
 	t := s.load(user)
 	t.Token, t.ValidUntil, t.HashAlg = "", 0, ""
 	_ = s.save(t)

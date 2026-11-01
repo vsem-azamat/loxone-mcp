@@ -143,7 +143,7 @@ func (d *Device) Writable() error {
 		return fmt.Errorf("%s is a %s; this kind is never changed through this server", d.ID, d.Kind)
 	}
 	if d.Safety != SafetyControl {
-		return fmt.Errorf("%s is read-only: the home map does not allow changing it", d.ID)
+		return fmt.Errorf("%s is read-only: the home map does not allow agents to change it; tell the user to use the Loxone app", d.ID)
 	}
 	if d.control.IsSecured {
 		return fmt.Errorf("%s needs a visualisation password, which this server does not handle", d.ID)
@@ -410,8 +410,15 @@ func (m *Map) index() {
 		}
 	}
 	for l, ds := range m.labels {
-		if r := m.roomLabels[l]; r != nil && len(ds) > 0 {
-			m.Warnings = append(m.Warnings, fmt.Sprintf("%q names both the room %s and the device %s", l, r.ID, ds[0].ID))
+		r := m.roomLabels[l]
+		if r == nil {
+			continue
+		}
+		for _, d := range ds {
+			if d.Room != r {
+				m.Warnings = append(m.Warnings, fmt.Sprintf("%q names both the room %s and the device %s in another room", l, r.ID, d.ID))
+				break
+			}
 		}
 	}
 	sort.Strings(m.Warnings)
@@ -530,8 +537,11 @@ func (m *Map) ResolveScope(target string, kind Kind) (*Scope, error) {
 		}
 	case m.byID[strings.TrimSpace(strings.ToLower(target))] == nil && m.Room(target) != nil:
 		r := m.Room(target)
-		if ds := m.visibleOnly(m.labels[q]); len(ds) > 0 {
-			return nil, fmt.Errorf("%q names both the room %s and the device %s; use the room id or the device id", target, r.ID, ds[0].ID)
+		// a device that shares the room's name and lives in it is covered by the room
+		for _, d := range m.visibleOnly(m.labels[q]) {
+			if d.Room != r {
+				return nil, fmt.Errorf("%q names both the room %s and the device %s; use the room id or the device id", target, r.ID, d.ID)
+			}
 		}
 		desc = string(kind) + " devices in " + r.Name
 		for _, d := range m.Visible() {
@@ -559,7 +569,7 @@ func (m *Map) ResolveScope(target string, kind Kind) (*Scope, error) {
 		case group != "" && d.Kind == group:
 			desc = "members of " + d.ID
 			for _, uuid := range d.Members {
-				if md := m.byUUID[uuid]; md != nil && md.Kind == kind && md.Safety != SafetyHidden {
+				if md := m.byUUID[uuid]; md != nil && md.Kind == kind && md.Safety != SafetyHidden && !md.Room.Hidden {
 					cands = append(cands, md)
 				}
 			}

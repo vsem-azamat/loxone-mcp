@@ -11,19 +11,19 @@ A device may be changed only when all of these hold (`home.Device.Writable`):
 3. it needs no visualisation password (`isSecured`);
 4. a `value` device has a `range` in the overlay.
 
-The Miniserver state can refuse more at the moment of the call: a control locked by the Miniserver (`jLocked`), a blind that is locked or in a safety shutdown (only `stop` is sent then), a switch held on by logic. Writes are refused altogether while the Miniserver is disconnected, and when the Miniserver user is an administrator (`LOXONE_ALLOW_ADMIN=1` overrides): the token carries all of the user's rights, so the server expects a user limited to what it may control.
+The Miniserver state can refuse more at the moment of the call: a control locked by the Miniserver (`jLocked` with `locked` other than 0), a blind that is locked or in a safety shutdown (only `stop` is sent then), a switch held on by logic. Writes are refused altogether while the Miniserver is disconnected, and when the Miniserver user is an administrator (`LOXONE_ALLOW_ADMIN=1` overrides): the token carries all of the user's rights, so the server expects a user limited to what it may control.
 
 ## Targets and scopes
 
-`set_lights` and `set_blinds` accept a room, a group controller or the literal `all`; they expand to the writable devices of that kind and report the others as `skipped`. Group controllers are never commanded: each member gets its own validated command. A target that is both a room name and a device name is an error. Climate targets resolve to a room's controller.
+`set_lights` and `set_blinds` accept a room, a group controller or the literal `all`; they expand to the writable devices of that kind and report the others as `skipped`. Group controllers are never commanded: each member gets its own validated command. A name of a room that is also the name of a device in that room means the room (for example a room's main light named like the room); a room name that is also a device name elsewhere is an error. Climate targets resolve to a room's controller.
 
 ## The write path
 
 `server.execute` is the only code that sends control commands:
 
 1. resolve the target; build every device's command from validated parts (numbers checked against ranges and formatted by code, mood and option ids taken from the Miniserver's own lists). If any command cannot be built, nothing is sent;
-2. skip devices already in the requested state (`no_change`);
-3. send the commands, then wait up to 3 s for each device to publish a new state (`confirmed`);
+2. skip devices known to be in the requested state already (`no_change`); a device whose state is unknown always gets the command;
+3. send the commands (each bounded to 15 s; an unanswered command closes the connection), then wait up to 3 s for each device to publish a new state (`confirmed`);
 4. write one audit record per device and answer with the state before and after.
 
 No text from the caller reaches a command path: the UUID comes from the map, the command from a fixed set or a number formatted by code.

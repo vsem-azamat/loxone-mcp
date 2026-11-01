@@ -29,6 +29,9 @@ import (
 //go:embed testdata/structure.json
 var Structure []byte
 
+// NoAnswer is an Effect code: the command gets no answer.
+const NoAnswer = -1
+
 // Credentials of the fake.
 const (
 	User     = "resident"
@@ -37,7 +40,8 @@ const (
 	key      = "6b65792d6f662d746865"
 )
 
-// Effect is what a control command does: the states it changes. Returning code 0 means 200.
+// Effect is what a control command does: the states it changes. Returning code 0 means 200;
+// NoAnswer means the fake never answers the command.
 type Effect func(uuid, cmd string) (numbers map[string]float64, texts map[string]string, code int)
 
 // Server is a fake Miniserver.
@@ -325,6 +329,9 @@ func (s *Server) handle(ctx context.Context, c *websocket.Conn) {
 				if c0 != 0 {
 					code = c0
 				}
+			}
+			if code == NoAnswer {
+				continue
 			}
 			reply("1", code)
 			if code == 200 {

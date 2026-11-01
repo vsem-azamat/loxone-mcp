@@ -50,6 +50,12 @@ func (s States) flag(d *Device, name string) (bool, bool) {
 	return n != 0, ok
 }
 
+// ZoneKnown reports whether the Miniserver has published its clock, so its zone is known.
+func (s States) ZoneKnown() bool {
+	v, ok := s.Store.Get(s.Map.GlobalStates["miniserverTime"])
+	return ok && v.IsText && parseZone(v.Text) != nil
+}
+
 // Zone is the Miniserver's time zone, taken from its clock state; the local zone when unknown.
 func (s States) Zone() *time.Location {
 	uuid := s.Map.GlobalStates["miniserverTime"]
@@ -179,7 +185,7 @@ func (s States) Summary(d *Device) map[string]any {
 	case KindLightGroup, KindBlindGroup:
 		ids := []string{}
 		for _, uuid := range d.Members {
-			if md := s.Map.byUUID[uuid]; md != nil && md.Safety != SafetyHidden {
+			if md := s.Map.byUUID[uuid]; md != nil && md.Safety != SafetyHidden && !md.Room.Hidden {
 				ids = append(ids, md.ID)
 			}
 		}
@@ -196,10 +202,10 @@ func (s States) Summary(d *Device) map[string]any {
 
 func (s States) climateSummary(d *Device, out map[string]any) {
 	if v, ok := s.num(d, "tempActual"); ok {
-		out["temperature"] = round1(v)
+		out["temperature_c"] = round1(v)
 	}
 	if v, ok := s.num(d, "tempTarget"); ok {
-		out["target"] = round1(v)
+		out["target_temperature_c"] = round1(v)
 	}
 	// 0 means the sensor is not connected
 	if v, ok := s.num(d, "humidityActual"); ok && v > 0 {
@@ -222,7 +228,7 @@ func (s States) climateSummary(d *Device, out map[string]any) {
 func activeModeName(m int) string {
 	switch m {
 	case 0:
-		return "economy"
+		return "eco"
 	case 1:
 		return "comfort"
 	case 2:
@@ -470,13 +476,20 @@ func (s States) Detail(d *Device) map[string]any {
 		out["moods"] = s.moods(d)
 	case KindClimate:
 		st := map[string]any{}
-		for _, n := range []string{"comfortTemperature", "comfortTemperatureCool", "comfortTemperatureOffset", "frostProtectTemperature", "heatProtectTemperature", "actualOutdoorTemp"} {
+		for n, key := range map[string]string{
+			"comfortTemperature":       "comfort_heating_c",
+			"comfortTemperatureCool":   "comfort_cooling_c",
+			"comfortTemperatureOffset": "comfort_offset_c",
+			"frostProtectTemperature":  "building_protection_min_c",
+			"heatProtectTemperature":   "building_protection_max_c",
+			"actualOutdoorTemp":        "outdoor_temperature_c",
+		} {
 			if v, ok := s.num(d, n); ok && v > -1000 {
-				st[n] = round1(v)
+				st[key] = round1(v)
 			}
 		}
 		if v, ok := s.num(d, "operatingMode"); ok {
-			st["operatingMode"] = operatingModeName(int(v))
+			st["operating_mode"] = operatingModeName(int(v))
 		}
 		out["climate"] = st
 		if ov := s.overrides(d); len(ov) > 0 {
@@ -523,6 +536,18 @@ func (s States) Detail(d *Device) map[string]any {
 	}
 	out["raw_states"] = raw
 	return out
+}
+
+// Matches reports whether a free-text query occurs in the device's id, names, aliases,
+// description, tags or kind (folded, every word must occur).
+func (d *Device) Matches(query string) bool {
+	hay := normalize(strings.Join(append(append([]string{d.ID, d.Name, d.SourceName, d.Description, string(d.Kind), d.Room.Name}, d.Aliases...), d.Tags...), " "))
+	for _, w := range strings.Fields(normalize(query)) {
+		if !strings.Contains(hay, w) {
+			return false
+		}
+	}
+	return true
 }
 
 // TempRange is the setpoint range a climate device accepts: the overlay's, else 15..26 °C.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -164,5 +165,60 @@ func TestResolveCloudDNS(t *testing.T) {
 	got, err := loxone.Resolve(context.Background(), dns.Client(), dns.URL+"/x?y=1")
 	if err != nil || got != dns.URL+"/" {
 		t.Fatalf("direct: %q %v", got, err)
+	}
+}
+
+func TestUnansweredCommandTimesOutAndReconnects(t *testing.T) {
+	ms := fakems.New(nil, nil)
+	defer ms.Close()
+	ms.SetEffect(func(_, cmd string) (map[string]float64, map[string]string, int) {
+		if cmd == "hang" {
+			return nil, nil, fakems.NoAnswer
+		}
+		return nil, nil, 0
+	})
+	c := loxone.New(loxone.Config{
+		URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(),
+		MaxBackoff: 50 * time.Millisecond, CommandTimeout: 200 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = c.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	waitReady(t, c)
+	start := time.Now()
+	if _, err := c.Command(context.Background(), "40000000-0000-0001-ffff000000000001", "hang"); err == nil {
+		t.Fatal("unanswered command succeeded")
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("command not bounded")
+	}
+	// the connection was closed and comes back; the next command works
+	waitReady(t, c)
+	cctx, ccancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer ccancel()
+	for {
+		if _, err := c.Command(cctx, "40000000-0000-0001-ffff000000000001", "on"); err == nil {
+			break
+		}
+		if cctx.Err() != nil {
+			t.Fatal("no command after the reconnect")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestReadOnlyTokenStoreLeavesFile(t *testing.T) {
+	ms := fakems.New(nil, nil)
+	defer ms.Close()
+	tokenFile := filepath.Join(t.TempDir(), "token.json")
+	c := loxone.New(loxone.Config{URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(), TokenFile: tokenFile, TokenReadOnly: true})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = c.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	waitReady(t, c)
+	if _, err := os.Stat(tokenFile); !os.IsNotExist(err) {
+		t.Fatalf("read-only store wrote the token file: %v", err)
 	}
 }

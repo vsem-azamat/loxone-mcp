@@ -205,7 +205,7 @@ func TestLightCommands(t *testing.T) {
 }
 
 func TestBlindCommands(t *testing.T) {
-	st := testStates(t, map[string]float64{"20000000-0000-0001-ffff0000000000a4": 0}, nil)
+	st := testStates(t, map[string]float64{"20000000-0000-0001-ffff0000000000a4": 0, "20000000-0000-0001-ffff0000000000a2": 0, "20000000-0000-0001-ffff0000000000a3": 0}, nil)
 	d, _ := st.Map.Resolve("living.blind")
 	p := func(f float64) *float64 { return &f }
 	cases := []struct {
@@ -378,5 +378,72 @@ func TestGenerateOverlayParses(t *testing.T) {
 		if d.Safety != SafetyRead {
 			t.Fatal("generated overlay allows a write")
 		}
+	}
+}
+
+func TestNormalizeConcurrently(t *testing.T) {
+	done := make(chan struct{})
+	for range 8 {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			for range 500 {
+				if normalize("Žaluzie levá Obývák") != "zaluzie leva obyvak" {
+					t.Error("wrong fold")
+					return
+				}
+			}
+		}()
+	}
+	for range 8 {
+		<-done
+	}
+}
+
+func TestUnknownStateIsNeverNoChange(t *testing.T) {
+	st := testStates(t, nil, map[string]string{"10000000-0000-0001-ffff0000000000a3": moodList})
+	light, _ := st.Map.Resolve("living.light")
+	if c, err := st.LightCommand(light, LightAction{Action: "off"}); err != nil || c.NoChange {
+		t.Fatalf("off with unknown moods: %+v %v", c, err)
+	}
+	blind, _ := st.Map.Resolve("living.blind")
+	if c, err := st.BlindCommand(blind, BlindAction{Action: "open"}); err != nil || c.NoChange {
+		t.Fatalf("open with unknown position: %+v %v", c, err)
+	}
+	cl, _ := st.Map.Resolve("living.climate")
+	if c, err := st.ClimateCommand(cl, ClimateAction{Action: "stop_override"}, time.Now()); err != nil || c.NoChange {
+		t.Fatalf("stop_override with unknown overrides: %+v %v", c, err)
+	}
+}
+
+func TestLockState(t *testing.T) {
+	st := testStates(t, nil, map[string]string{
+		"10000000-0000-0001-ffff0000000000a3": moodList,
+		"10000000-0000-0001-ffff0000000000a1": `{"locked":0,"reason":""}`,
+	})
+	d, _ := st.Map.Resolve("living.light")
+	if _, err := st.LightCommand(d, LightAction{Action: "off"}); err != nil {
+		t.Fatalf("unlocked refused: %v", err)
+	}
+	st.Store.SetText("10000000-0000-0001-ffff0000000000a1", `{"locked":1,"reason":"maintenance"}`)
+	if _, err := st.LightCommand(d, LightAction{Action: "off"}); err == nil || !strings.Contains(err.Error(), "maintenance") {
+		t.Fatalf("locked accepted: %v", err)
+	}
+}
+
+func TestTimedOverrideNeedsClock(t *testing.T) {
+	st := States{Map: testMap(t, testOverlay), Store: state.New(nil)}
+	d, _ := st.Map.Resolve("living.climate")
+	tmp := 21.0
+	if _, err := st.ClimateCommand(d, ClimateAction{Action: "temperature", Temperature: &tmp}, time.Now()); err == nil {
+		t.Fatal("override without the Miniserver clock")
+	}
+}
+
+func TestHiddenRoomMembersAreNotCommanded(t *testing.T) {
+	o := strings.Replace(testOverlay, `{id: bedroom, name: Bedroom}`, `{id: bedroom, name: Bedroom, hidden: true}`, 1)
+	m := testMap(t, o)
+	s, err := m.ResolveScope("All blinds", KindBlind)
+	if err != nil || len(s.Devices) != 1 || s.Devices[0].ID != "living.blind" {
+		t.Fatalf("group with a hidden-room member: %+v %v", s, err)
 	}
 }

@@ -21,8 +21,23 @@ type Command struct {
 
 // checkLive refuses a device the Miniserver currently locks against commands.
 func (s States) checkLive(d *Device) error {
-	if t, ok := s.text(d, "jLocked"); ok && strings.TrimSpace(t) != "" && t != "{}" && t != "null" {
-		return fmt.Errorf("%s is locked on the Miniserver (%s)", d.ID, cleanText(t))
+	t, ok := s.text(d, "jLocked")
+	if !ok || strings.TrimSpace(t) == "" {
+		return nil
+	}
+	var l struct {
+		Locked int    `json:"locked"`
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal([]byte(t), &l); err != nil {
+		return fmt.Errorf("%s has an unreadable lock state on the Miniserver; not changed", d.ID)
+	}
+	if l.Locked != 0 {
+		why := cleanText(l.Reason)
+		if why == "" {
+			why = "no reason given"
+		}
+		return fmt.Errorf("%s is locked on the Miniserver (%s)", d.ID, why)
 	}
 	return nil
 }
@@ -49,7 +64,8 @@ func (s States) LightCommand(d *Device, a LightAction) (Command, error) {
 		return Command{}, err
 	}
 	active := s.activeMoods(d)
-	only := func(id int) bool { return len(active) == 1 && active[0] == id }
+	_, known := s.text(d, "activeMoods") // NoChange only when the current state is known
+	only := func(id int) bool { return known && len(active) == 1 && active[0] == id }
 	moods := s.moods(d)
 	has := func(id int) bool {
 		for _, m := range moods {
@@ -64,9 +80,9 @@ func (s States) LightCommand(d *Device, a LightAction) (Command, error) {
 		if !has(offMoodID) && len(moods) > 0 {
 			return Command{}, fmt.Errorf("%s has no off mood", d.ID)
 		}
-		return Command{UUID: d.UUID, Cmd: "changeTo/" + strconv.Itoa(offMoodID), NoChange: !lightOn(active)}, nil
+		return Command{UUID: d.UUID, Cmd: "changeTo/" + strconv.Itoa(offMoodID), NoChange: known && !lightOn(active)}, nil
 	case "on":
-		if lightOn(active) {
+		if known && lightOn(active) {
 			return Command{UUID: d.UUID, Cmd: "changeTo/" + strconv.Itoa(active[0]), NoChange: true}, nil
 		}
 		t, _ := s.text(d, "favoriteMoods")
@@ -85,7 +101,7 @@ func (s States) LightCommand(d *Device, a LightAction) (Command, error) {
 		return Command{}, fmt.Errorf("%s has no mood that turns it on", d.ID)
 	case "mood":
 		if strings.TrimSpace(a.Mood) == "" {
-			return Command{}, errors.New("action mood needs mood")
+			return Command{}, errors.New("action mood needs mood=<name>; get_device lists the light's moods")
 		}
 		m, err := s.FindMood(d, a.Mood)
 		if err != nil {
@@ -138,15 +154,15 @@ func (s States) BlindCommand(d *Device, a BlindAction) (Command, error) {
 			return Command{}, fmt.Errorf("action %s takes no position or slats", a.Action)
 		}
 		c := Command{UUID: d.UUID, Cmd: cmd}
-		pos, _ := s.num(d, "position")
-		up, _ := s.flag(d, "up")
-		down, _ := s.flag(d, "down")
-		moving := up || down
+		pos, posOK := s.num(d, "position")
+		up, upOK := s.flag(d, "up")
+		down, downOK := s.flag(d, "down")
+		still := posOK && upOK && downOK && !up && !down
 		switch a.Action {
 		case "open":
-			c.NoChange = !moving && pos <= 0.005
+			c.NoChange = still && pos <= 0.005
 		case "close":
-			c.NoChange = !moving && pos >= 0.995
+			c.NoChange = still && pos >= 0.995
 		case "automatic_on", "automatic_off":
 			if auto, ok := s.flag(d, "autoActive"); ok {
 				c.NoChange = auto == (a.Action == "automatic_on")
@@ -225,6 +241,9 @@ func (s States) ClimateCommand(d *Device, a ClimateAction, now time.Time) (Comma
 	if (a.Action == "temperature" || a.Action == "override") && (minutes < 1 || minutes > MaxOverrideMinutes) {
 		return Command{}, fmt.Errorf("minutes must be 1..%d", MaxOverrideMinutes)
 	}
+	if (a.Action == "temperature" || a.Action == "override") && !s.ZoneKnown() {
+		return Command{}, errors.New("the Miniserver's clock is not known yet, so an end time cannot be computed; retry in a minute")
+	}
 	until := s.ToMiniserver(now.Add(time.Duration(minutes) * time.Minute))
 	switch a.Action {
 	case "temperature":
@@ -250,7 +269,8 @@ func (s States) ClimateCommand(d *Device, a ClimateAction, now time.Time) (Comma
 		}
 		return Command{UUID: d.UUID, Cmd: fmt.Sprintf("override/%d/%d", id, until)}, nil
 	case "stop_override":
-		return Command{UUID: d.UUID, Cmd: "stopOverride", NoChange: len(s.overrides(d)) == 0}, nil
+		_, known := s.text(d, "overrideEntries")
+		return Command{UUID: d.UUID, Cmd: "stopOverride", NoChange: known && len(s.overrides(d)) == 0}, nil
 	default:
 		return Command{}, fmt.Errorf("unknown climate action %q (temperature, comfort_setpoint, override, stop_override)", a.Action)
 	}
@@ -324,7 +344,8 @@ func (s States) DeviceCommand(d *Device, a DeviceAction) (Command, error) {
 		if *a.Value < lo || *a.Value > hi {
 			return Command{}, fmt.Errorf("value must be %s..%s for %s", formatNumber(lo), formatNumber(hi), d.ID)
 		}
-		v := math.Round((*a.Value-lo)/step)*step + lo
+		base := d.slider.Min // steps count from the slider's own minimum
+		v := math.Round((*a.Value-base)/step)*step + base
 		v = math.Round(math.Min(math.Max(v, lo), hi)*1000) / 1000
 		cur, ok := s.num(d, "value")
 		return Command{UUID: d.UUID, Cmd: formatNumber(v), NoChange: ok && cur == v}, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,6 +36,7 @@ func readOnly(title string) *mcp.ToolAnnotations {
 type overviewIn struct{}
 
 type listIn struct {
+	Query    string `json:"query,omitempty" jsonschema:"free text matched against id, name, aliases, description, tags and kind, e.g. 'filter', 'ventilation', 'leave'"`
 	Room     string `json:"room,omitempty" jsonschema:"only devices in this room (id, name or alias)"`
 	Kind     string `json:"kind,omitempty" jsonschema:"only devices of this kind"`
 	Writable bool   `json:"writable,omitempty" jsonschema:"only devices the write tools may change"`
@@ -69,18 +71,20 @@ func (s *Server) addReadTools(srv *mcp.Server) {
 		Name: "home_overview",
 		Description: "Current state of the whole home in one call: per room the climate (temperature, target, humidity and CO2 where measured, mode, active override), " +
 			"lights (on/off and active mood), blinds (closed % and slats %, 0 = open), switches, ventilation and other values; plus alerts " +
-			"(smoke alarm, doorbell ringing, blocked blinds, open windows) and the Miniserver connection status. Use it first for \"what's going on at home\".",
+			"(smoke alarm, doorbell ringing, blocked blinds, open windows) and the Miniserver connection status. Use it first for \"what's going on at home\". " +
+			"Meters, group controllers and devices kept out of the overview are listed by list_devices.",
 		InputSchema: schemaFor[overviewIn](nil),
 		Annotations: readOnly("Home overview"),
-	}, s.overview)
+	}, guard(s.log, "overview", s.overview))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "list_devices",
 		Description: "List devices with their id, kind, room, whether the write tools may change them, and a one-line state. " +
-			"Filter by room and kind. Use the returned ids as targets of the other tools.",
+			"Filter by room, kind or a free-text query; use it to find status devices such as a filter, a service alarm or a leave-mode switch. " +
+			"Use the returned ids as targets of the other tools.",
 		InputSchema: schemaFor[listIn](map[string][]any{"kind": kindEnum()}),
 		Annotations: readOnly("List devices"),
-	}, s.listDevices)
+	}, guard(s.log, "listDevices", s.listDevices))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name: "get_device",
@@ -88,21 +92,22 @@ func (s *Server) addReadTools(srv *mcp.Server) {
 			"available light moods or options, setpoint ranges, and the exact write-tool actions it allows (none when read-only).",
 		InputSchema: schemaFor[deviceIn](nil),
 		Annotations: readOnly("Get device"),
-	}, s.getDevice)
+	}, guard(s.log, "getDevice", s.getDevice))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_meters",
-		Description: "Readings of the home's utility meters (heat and water), as the Miniserver shows them, with units.",
+		Description: "Readings of the home's utility meters (heat, water, power: every device tagged meter), as the Miniserver shows them, with units.",
 		InputSchema: schemaFor[overviewIn](nil),
 		Annotations: readOnly("Meters"),
-	}, s.meters)
+	}, guard(s.log, "meters", s.meters))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_intercom_bells",
-		Description: "Whether the doorbell is ringing now and the times of recent unanswered rings, newest first (ISO 8601, home time zone).",
+		Name: "get_intercom_bells",
+		Description: "Whether the doorbell is ringing now and the times of recent unanswered rings, newest first (ISO 8601, home time zone). " +
+			"Times only: no caller identity or picture.",
 		InputSchema: schemaFor[bellsIn](nil),
 		Annotations: readOnly("Doorbell history"),
-	}, s.bells)
+	}, guard(s.log, "bells", s.bells))
 }
 
 func (s *Server) overview(ctx context.Context, _ *mcp.CallToolRequest, _ overviewIn) (*mcp.CallToolResult, any, error) {
@@ -168,6 +173,9 @@ func (s *Server) overview(ctx context.Context, _ *mcp.CallToolRequest, _ overvie
 		"rooms":      rooms,
 		"alerts":     alerts,
 	}
+	if w := staleWarning(s.ms.Status()); w != "" {
+		out["warning"] = w
+	}
 	return nil, out, nil
 }
 
@@ -189,7 +197,7 @@ func (s *Server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, in lis
 		}
 	}
 	if in.Kind != "" && !slices.Contains(home.Kinds, home.Kind(in.Kind)) {
-		return nil, nil, fmt.Errorf("unknown kind %q", in.Kind)
+		return nil, nil, fmt.Errorf("unknown kind %q; kinds: %v", in.Kind, home.Kinds)
 	}
 	list := []map[string]any{}
 	for _, d := range st.Map.Visible() {
@@ -197,6 +205,9 @@ func (s *Server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, in lis
 			continue
 		}
 		if in.Kind != "" && string(d.Kind) != in.Kind {
+			continue
+		}
+		if in.Query != "" && !d.Matches(in.Query) {
 			continue
 		}
 		writable := d.Writable() == nil
@@ -271,5 +282,5 @@ func (s *Server) bells(ctx context.Context, _ *mcp.CallToolRequest, in bellsIn) 
 		sum := st.Summary(d)
 		list = append(list, map[string]any{"id": d.ID, "name": d.Name, "ringing": sum["ringing"], "recent_bells": b})
 	}
-	return nil, map[string]any{"intercoms": list, "connection": connectionInfo(s.ms.Status())}, nil
+	return nil, map[string]any{"intercoms": list, "now": s.opts.Now().In(st.Zone()).Format(time.RFC3339), "connection": connectionInfo(s.ms.Status())}, nil
 }

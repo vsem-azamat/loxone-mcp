@@ -6,7 +6,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -58,7 +60,7 @@ func (s *Server) writesAllowed() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.admin && !s.opts.AllowAdmin {
-		return errors.New("writes are disabled: the Miniserver user is an administrator; use a user without admin rights (or set LOXONE_ALLOW_ADMIN=1)")
+		return errors.New("writes are disabled by the server configuration (the Miniserver user is an administrator); tell the user, do not retry")
 	}
 	return nil
 }
@@ -97,7 +99,8 @@ func (s *Server) SetStructure(f *structure.File) {
 		s.log.Error("home map not rebuilt", "err", err.Error())
 		return
 	}
-	s.hm, s.err, s.admin = m, nil, f.MsInfo.CurrentUser.IsAdmin
+	// a structure file that does not name its user counts as an administrator's: fail closed
+	s.hm, s.err, s.admin = m, nil, f.MsInfo.CurrentUser.IsAdmin || f.MsInfo.CurrentUser.Name == ""
 	if s.admin && !s.opts.AllowAdmin {
 		s.log.Warn("the Miniserver user is an administrator; writes are disabled")
 	}
@@ -129,7 +132,7 @@ func (s *Server) view(ctx context.Context) (home.States, error) {
 		if waitErr != nil {
 			return home.States{}, waitErr
 		}
-		return home.States{}, errors.New("the home map is not loaded yet")
+		return home.States{}, errors.New("the home map is not loaded yet; retry in a few seconds")
 	}
 	return home.States{Map: m, Store: s.ms.Store()}, nil
 }
@@ -145,8 +148,30 @@ func (s *Server) MCP() *mcp.Server {
 }
 
 const instructions = `Reads and controls one home's Loxone smart-home system: lights, blinds, room climate, ventilation and a few switches.
-Start with home_overview for the current state. Devices are named by id (e.g. "bedroom.blind.left"), name or alias, in English or the local language; list_devices and get_device show what exists and what each device allows.
-Write tools change real things in an inhabited home: act only on the user's request, name targets precisely, and check the returned "after" state. Devices marked read-only cannot be changed by any tool.`
+Start with home_overview for the current state; values are live from the Miniserver (temperatures in °C, positions in percent, times ISO 8601 in the home's time zone). Devices are named by id (e.g. "bedroom.blind.left"), name or alias, in English or the local language; list_devices and get_device show what exists and what each device allows.
+Write tools change real things in an inhabited home: act only on the user's request, name targets precisely, and check the returned "after" state. Devices marked read-only cannot be changed by any tool; say so instead of looking for a way around it.
+There is no single away tool. When the user leaves: set_lights target "all" action "off", and switch on a leave-mode switch if list_devices (query "leave") shows a writable one. Do not close blinds or change heating unless asked. Report what was done.`
+
+// guard turns a panic in a tool into an error answer, so one bug does not end the server and
+// every client's session.
+func guard[In any](log *slog.Logger, name string, h mcp.ToolHandlerFor[In, any]) mcp.ToolHandlerFor[In, any] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in In) (res *mcp.CallToolResult, out any, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("tool panicked", "tool", name, "panic", fmt.Sprint(r), "stack", string(debug.Stack()))
+				res, out, err = nil, nil, errors.New("internal error in the server; check the result with get_device before retrying")
+			}
+		}()
+		return h(ctx, req, in)
+	}
+}
+
+func staleWarning(st loxone.Status) string {
+	if st.Connected {
+		return ""
+	}
+	return "the Miniserver is disconnected since " + st.Since.Format(time.RFC3339) + ": the values and alerts are the last known, not current"
+}
 
 func connectionInfo(st loxone.Status) map[string]any {
 	out := map[string]any{"connected": st.Connected, "since": st.Since.Format(time.RFC3339)}

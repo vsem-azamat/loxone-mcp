@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `LOXONE_URL` | required | Cloud DNS address `https://connect.loxonecloud.com/<serial>` (resolved on every connection), or the Miniserver's own `https://host:port` |
 | `LOXONE_USER` | required | Miniserver user. Use a user without admin rights: with an admin user every write is refused unless `LOXONE_ALLOW_ADMIN=1` |
-| `LOXONE_PASSWORD` | | The user's password. It is used only to acquire a token and removed from the process environment at start |
+| `LOXONE_PASSWORD` | | The user's password. It is used only to acquire a token, and unset at start so no child process inherits it |
 | `LOXONE_PASSWORD_FILE` | | A file holding the password (a trailing newline is ignored), instead of `LOXONE_PASSWORD` |
 | `LOXONE_OVERLAY` | `$XDG_CONFIG_HOME/loxone-mcp/home.yaml` | The overlay file. A missing file means an empty overlay: everything read-only |
 | `LOXONE_STATE_DIR` | `$XDG_STATE_HOME/loxone-mcp` | The token cache `token.json` and the `serve.lock`; created `0700` |
@@ -20,9 +20,9 @@
 | Command | What it does |
 | --- | --- |
 | `loxone-mcp` / `loxone-mcp serve` | The MCP server on stdin/stdout. Refuses to start with an invalid overlay or when another `serve` holds the state directory |
-| `loxone-mcp check` | Connects, builds the map with the overlay, prints every device with its kind, id, `CONTROL`/`read` and current state, and the map warnings. Changes nothing |
+| `loxone-mcp check` | Connects, builds the map with the overlay, prints every device with its kind, id, `CONTROL`/`read` and current state, and the map warnings. Changes nothing; next to a running `serve` it uses the cached token without refreshing it |
 | `loxone-mcp overlay-init` | Prints an overlay skeleton for the live structure file: generated ids, Miniserver names as aliases, every device `safety: read` |
-| `loxone-mcp logout` | Revokes the cached token on the Miniserver (`jdev/sys/killtoken`) and forgets it |
+| `loxone-mcp logout` | Revokes the cached token on the Miniserver (`jdev/sys/killtoken`) and forgets it; refused while `serve` runs |
 | `loxone-mcp version` | Prints the version |
 
 ## Overlay

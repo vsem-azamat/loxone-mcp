@@ -37,12 +37,11 @@ func cleanText(s string) string {
 	return b.String()
 }
 
-var foldTransformer = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-
 // normalize folds a name for matching: lower case, no diacritics, words of letters and digits
 // separated by single spaces.
 func normalize(s string) string {
-	folded, _, err := transform.String(foldTransformer, s)
+	// a transformer keeps state, so every call makes its own
+	folded, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), s)
 	if err != nil {
 		folded = s
 	}

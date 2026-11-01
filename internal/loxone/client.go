@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,11 @@ type Config struct {
 	Password string
 	// TokenFile caches the token between runs; "" keeps it in memory.
 	TokenFile string
+	// TokenReadOnly uses the cached token without refreshing or replacing it on disk, for a
+	// second process next to the one that owns the token.
+	TokenReadOnly bool
+	// CommandTimeout bounds one control command (default 15 s).
+	CommandTimeout time.Duration
 	// ClientInfo names this client in the user's token list.
 	ClientInfo string
 
@@ -57,7 +63,7 @@ type Status struct {
 type Client struct {
 	cfg    Config
 	log    *slog.Logger
-	tokens tokenStore
+	tokens *tokenStore
 
 	mu        sync.Mutex
 	cur       *conn
@@ -86,13 +92,16 @@ func New(cfg Config) *Client {
 	if cfg.AuthFailBackoff <= 0 {
 		cfg.AuthFailBackoff = 5 * time.Minute
 	}
+	if cfg.CommandTimeout <= 0 {
+		cfg.CommandTimeout = 15 * time.Second
+	}
 	if cfg.ClientInfo == "" {
 		cfg.ClientInfo = "loxone-mcp"
 	}
 	return &Client{
 		cfg:    cfg,
 		log:    cfg.Logger,
-		tokens: tokenStore{path: cfg.TokenFile},
+		tokens: &tokenStore{path: cfg.TokenFile, readOnly: cfg.TokenReadOnly},
 		ready:  make(chan struct{}),
 		status: Status{Since: time.Now()},
 	}
@@ -180,7 +189,7 @@ func (c *Client) setDisconnected(err error) {
 	}
 	c.status.Connected = false
 	if err != nil {
-		c.status.LastError = err.Error()
+		c.status.LastError = withoutURLs(err.Error())
 	}
 	c.cur = nil
 	select {
@@ -302,8 +311,8 @@ func (c *Client) authenticate(ctx context.Context, cn *conn) error {
 			return nil
 		}
 		var ce *CodeError
-		if !errors.As(err, &ce) {
-			return err // the connection failed, not the token
+		if !errors.As(err, &ce) || ce.Code != 401 {
+			return err // the connection failed or the Miniserver refuses for now, not the token
 		}
 		c.log.Warn("cached token rejected; acquiring a new one", "code", ce.Code)
 		c.tokens.clear(user)
@@ -368,6 +377,9 @@ func (c *Client) acquireToken(ctx context.Context, cn *conn, tf tokenFile) error
 
 // refreshIfDue refreshes the token when less than three days of it are left.
 func (c *Client) refreshIfDue(ctx context.Context, cn *conn) error {
+	if c.tokens.readOnly {
+		return nil
+	}
 	tf := c.tokens.load(c.cfg.User)
 	if tf.Token == "" || time.Until(FromEpoch2009(tf.ValidUntil)) > 72*time.Hour {
 		return nil
@@ -441,11 +453,15 @@ func (c *Client) Command(ctx context.Context, uuid, cmd string) (Response, error
 	if cn == nil {
 		return Response{}, errors.New("miniserver not connected")
 	}
-	path := "jdev/sps/io/" + uuid + "/" + cmd
 	if strings.ContainsAny(uuid, "/?#% ") {
 		return Response{}, fmt.Errorf("invalid control id %q", uuid)
 	}
-	return cn.command(ctx, path, path)
+	path := "jdev/sps/io/" + uuid + "/" + cmd
+	// unanswered, the command fails and closes the connection, so keepalives and later commands
+	// never wait behind it
+	cctx, cancel := context.WithTimeout(ctx, c.cfg.CommandTimeout)
+	defer cancel()
+	return cn.command(cctx, path, path)
 }
 
 // Logout revokes the cached token on the Miniserver and forgets it. Without a cached token it
@@ -490,3 +506,9 @@ func (c *Client) Logout(ctx context.Context) error {
 	c.tokens.clear(c.cfg.User)
 	return nil
 }
+
+var urlPattern = regexp.MustCompile(`(?i)\b(?:https?|wss?)://[^\s"']+`)
+
+// withoutURLs removes addresses (the cloud serial, the relay host) from an error text that
+// agents see.
+func withoutURLs(s string) string { return urlPattern.ReplaceAllString(s, "<miniserver>") }

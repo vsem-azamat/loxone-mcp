@@ -74,12 +74,26 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cmd == "check" || cmd == "overlay-init" {
+		// next to a running server, use its token without refreshing or replacing it
+		if unlock, err := lockStateDir(cfg.stateDir); err == nil {
+			defer unlock()
+		} else {
+			cfg.tokenReadOnly = true
+		}
+	}
 	switch cmd {
 	case "check":
 		return check(ctx, cfg, log, stdout)
 	case "overlay-init":
 		return overlayInit(ctx, cfg, log, stdout)
 	case "logout":
+		unlock, err := lockStateDir(cfg.stateDir)
+		if err != nil {
+			fmt.Fprintln(stderr, "logout:", err, "(stop the server first)")
+			return 1
+		}
+		defer unlock()
 		lctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 		defer cancel()
 		if err := newClient(cfg, log, nil).Logout(lctx); err != nil {
@@ -99,6 +113,7 @@ type config struct {
 	stateDir            string
 	tokenFile           string
 	allowAdmin          bool
+	tokenReadOnly       bool
 	level               slog.Level
 }
 
@@ -116,7 +131,7 @@ func loadConfig() (config, error) {
 		}
 		c.password = strings.TrimRight(string(b), "\r\n")
 	}
-	// the password stays only in this process's memory, not in its environment
+	// not passed on to anything this process starts
 	_ = os.Unsetenv("LOXONE_PASSWORD")
 	var missing []string
 	for name, v := range map[string]string{"LOXONE_URL": c.url, "LOXONE_USER": c.user, "LOXONE_PASSWORD": c.password} {
@@ -154,13 +169,14 @@ func loadConfig() (config, error) {
 
 func newClient(cfg config, log *slog.Logger, onStructure func(*structure.File)) *loxone.Client {
 	return loxone.New(loxone.Config{
-		URL:         cfg.url,
-		User:        cfg.user,
-		Password:    cfg.password,
-		TokenFile:   cfg.tokenFile,
-		ClientInfo:  "loxone-mcp",
-		Logger:      log.With("component", "miniserver"),
-		OnStructure: onStructure,
+		URL:           cfg.url,
+		User:          cfg.user,
+		Password:      cfg.password,
+		TokenFile:     cfg.tokenFile,
+		TokenReadOnly: cfg.tokenReadOnly,
+		ClientInfo:    "loxone-mcp",
+		Logger:        log.With("component", "miniserver"),
+		OnStructure:   onStructure,
 	})
 }
 

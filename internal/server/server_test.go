@@ -170,7 +170,7 @@ func TestOverview(t *testing.T) {
 	if out["connection"].(map[string]any)["connected"] != true {
 		t.Fatalf("connection %v", out["connection"])
 	}
-	if !strings.Contains(text, `"temperature":21.4`) || !strings.Contains(text, `"moods":["Bright"]`) {
+	if !strings.Contains(text, `"temperature_c":21.4`) || !strings.Contains(text, `"moods":["Bright"]`) {
 		t.Fatalf("overview: %s", text)
 	}
 	if strings.Contains(text, "12.5 m3") {
