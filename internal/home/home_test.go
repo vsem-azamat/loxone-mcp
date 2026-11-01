@@ -255,9 +255,9 @@ func TestClimateCommands(t *testing.T) {
 	})
 	d, _ := st.Map.Resolve("living.climate")
 	p := func(f float64) *float64 { return &f }
-	now := time.Date(2026, 1, 2, 3, 0, 0, 0, time.UTC) // 04:00 at the Miniserver (+01:00)
-	// 2026-01-02 08:00 local = days since 2009-01-01 local
-	wantUntil := time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC).Sub(time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC)) / time.Second
+	now := time.Date(2026, 1, 2, 3, 0, 0, 0, time.UTC)
+	// 240 minutes later, counted in UTC seconds since 2009 whatever the Miniserver's zone
+	wantUntil := time.Date(2026, 1, 2, 7, 0, 0, 0, time.UTC).Sub(time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC)) / time.Second
 	c, err := st.ClimateCommand(d, ClimateAction{Action: "temperature", Temperature: p(21.3)}, now)
 	if err != nil || c.Cmd != "override/3/"+formatNumber(float64(wantUntil))+"/21.5" {
 		t.Fatalf("temperature: %+v %v (want until %d)", c, err, wantUntil)
@@ -356,7 +356,7 @@ func TestOverviewTimes(t *testing.T) {
 	if off != 3600 {
 		t.Fatalf("offset %d", off)
 	}
-	if got := st.FromMiniserver(0).Format(time.RFC3339); got != "2009-01-01T00:00:00+01:00" {
+	if got := st.FromMiniserver(0).Format(time.RFC3339); got != "2009-01-01T01:00:00+01:00" {
 		t.Fatal(got)
 	}
 	if st.ToMiniserver(st.FromMiniserver(12345)) != 12345 {
@@ -430,12 +430,11 @@ func TestLockState(t *testing.T) {
 	}
 }
 
-func TestTimedOverrideNeedsClock(t *testing.T) {
-	st := States{Map: testMap(t, testOverlay), Store: state.New(nil)}
-	d, _ := st.Map.Resolve("living.climate")
-	tmp := 21.0
-	if _, err := st.ClimateCommand(d, ClimateAction{Action: "temperature", Temperature: &tmp}, time.Now()); err == nil {
-		t.Fatal("override without the Miniserver clock")
+func TestMiniserverTimesAreUTC(t *testing.T) {
+	// a live presence detector: activeSince 562504358, its log said 2026-10-29 12:12:38 (+01:00)
+	st := testStates(t, nil, nil)
+	if got := st.FromMiniserver(562504358).Format(time.RFC3339); got != "2026-10-29T12:12:38+01:00" {
+		t.Fatal(got)
 	}
 }
 

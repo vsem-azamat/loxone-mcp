@@ -24,7 +24,7 @@ agent ── MCP (stdio) ── internal/server ── internal/home (map, safet
 
 Names are matched after folding: lower case, no diacritics, punctuation as spaces. A device matches its id, its name, its Miniserver name, its aliases, and each of those combined with any name of its room ("bedroom left blind"). A name that matches several devices is an error that lists their ids; nothing is picked by similarity, suggestions only appear in the error.
 
-`home.States` reads the store for a map: short summaries per kind (lights on and their moods, blind closed %, climate temperatures and override, and so on), the full detail of one device, and the command builders of the write tools. Miniserver timestamps (seconds since 2009 on the Miniserver's wall clock) are converted with the time zone offset of the Miniserver's `miniserverTime` state.
+`home.States` reads the store for a map: short summaries per kind (lights on and their moods, blind closed %, climate temperatures and override, and so on), the full detail of one device, and the command builders of the write tools. Miniserver timestamps count seconds since 2009-01-01 00:00 UTC; times shown to agents are in the time zone offset of the Miniserver's `miniserverTime` state.
 
 ## MCP server (`internal/server`)
 
