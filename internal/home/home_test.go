@@ -472,7 +472,7 @@ func TestDeniedOptions(t *testing.T) {
 	o := strings.Replace(testOverlay, `options: {"1": minimum, "3": normal}}`, `options: {"1": minimum, "3": normal}, deny_options: ["0", "2"]}`, 1)
 	st := States{Map: testMap(t, o), Store: state.New(nil)}
 	fan, _ := st.Map.Resolve("vent.speed")
-	for _, q := range []string{"off", "OFF", "0", "LOW", "2"} {
+	for _, q := range []string{"off", "OFF", "none", "0", "LOW", "2"} {
 		if _, err := st.DeviceCommand(fan, DeviceAction{Action: "select", Option: q}); err == nil || !strings.Contains(err.Error(), "not allowed") {
 			t.Errorf("%q: %v", q, err)
 		}
