@@ -346,7 +346,17 @@ func (s States) DeviceCommand(d *Device, a DeviceAction) (Command, error) {
 		}
 		base := d.slider.Min // steps count from the slider's own minimum
 		v := math.Round((*a.Value-base)/step)*step + base
-		v = math.Round(math.Min(math.Max(v, lo), hi)*1000) / 1000
+		// stay on the slider's grid inside the allowed range
+		if v < lo {
+			v = math.Ceil((lo-base)/step)*step + base
+		}
+		if v > hi {
+			v = math.Floor((hi-base)/step)*step + base
+		}
+		if v < lo || v > hi {
+			return Command{}, fmt.Errorf("no value of %s's step %s lies in %s..%s", d.ID, formatNumber(step), formatNumber(lo), formatNumber(hi))
+		}
+		v = math.Round(v*1000) / 1000
 		cur, ok := s.num(d, "value")
 		return Command{UUID: d.UUID, Cmd: formatNumber(v), NoChange: ok && cur == v}, nil
 	default:

@@ -5,14 +5,16 @@ package loxone
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/coder/websocket"
@@ -189,7 +191,7 @@ func (c *Client) setDisconnected(err error) {
 	}
 	c.status.Connected = false
 	if err != nil {
-		c.status.LastError = withoutURLs(err.Error())
+		c.status.LastError = errorCategory(err)
 	}
 	c.cur = nil
 	select {
@@ -335,6 +337,10 @@ func (c *Client) authWithToken(ctx context.Context, cn *conn, tf tokenFile) erro
 }
 
 func (c *Client) acquireToken(ctx context.Context, cn *conn, tf tokenFile) error {
+	if c.tokens.readOnly {
+		// a token acquired here could be neither saved nor revoked: it would linger on the Miniserver
+		return errors.New("no valid cached token, and the token is read-only next to a running server")
+	}
 	user := c.cfg.User
 	r, err := cn.command(ctx, "jdev/sys/getkey2/"+url.PathEscape(user), "jdev/sys/getkey2/<user>")
 	if err != nil {
@@ -444,21 +450,19 @@ func (c *Client) loadStructure(ctx context.Context, cn *conn) error {
 // Command sends a command to a control: jdev/sps/io/<uuid>/<cmd>. cmd must come from code, never
 // from free text: callers build it from validated parts.
 func (c *Client) Command(ctx context.Context, uuid, cmd string) (Response, error) {
-	if err := c.WaitReady(ctx); err != nil {
-		return Response{}, err
+	if strings.ContainsAny(uuid, "/?#% ") {
+		return Response{}, fmt.Errorf("invalid control id %q", uuid)
 	}
+	// It never waits for a reconnect: a command sent late surprises the people at home.
+	// Unanswered, it fails and closes the connection, so keepalives and later commands never
+	// wait behind it.
 	c.mu.Lock()
 	cn := c.cur
 	c.mu.Unlock()
 	if cn == nil {
 		return Response{}, errors.New("miniserver not connected")
 	}
-	if strings.ContainsAny(uuid, "/?#% ") {
-		return Response{}, fmt.Errorf("invalid control id %q", uuid)
-	}
 	path := "jdev/sps/io/" + uuid + "/" + cmd
-	// unanswered, the command fails and closes the connection, so keepalives and later commands
-	// never wait behind it
 	cctx, cancel := context.WithTimeout(ctx, c.cfg.CommandTimeout)
 	defer cancel()
 	return cn.command(cctx, path, path)
@@ -507,8 +511,33 @@ func (c *Client) Logout(ctx context.Context) error {
 	return nil
 }
 
-var urlPattern = regexp.MustCompile(`(?i)\b(?:https?|wss?)://[^\s"']+`)
-
-// withoutURLs removes addresses (the cloud serial, the relay host) from an error text that
-// agents see.
-func withoutURLs(s string) string { return urlPattern.ReplaceAllString(s, "<miniserver>") }
+// errorCategory says what went wrong without the error text, which can name the relay host,
+// its address or the Miniserver's serial; agents see it, the log keeps the full error.
+func errorCategory(err error) string {
+	var ce *CodeError
+	var dnsErr *net.DNSError
+	var certErr *tls.CertificateVerificationError
+	var netErr net.Error
+	switch {
+	case errors.As(err, &ce):
+		return fmt.Sprintf("the Miniserver answered %d", ce.Code)
+	case errors.Is(err, ErrOutOfService):
+		return "the Miniserver went out of service (update or restart)"
+	case websocket.CloseStatus(err) == 4003:
+		return "the Miniserver blocks this client after failed logins"
+	case websocket.CloseStatus(err) != -1:
+		return fmt.Sprintf("the Miniserver closed the connection (code %d)", int(websocket.CloseStatus(err)))
+	case errors.As(err, &dnsErr):
+		return "the Miniserver address could not be resolved"
+	case errors.As(err, &certErr):
+		return "the Miniserver's TLS certificate was not accepted"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "the connection to the Miniserver was refused"
+	case errors.As(err, &netErr) && netErr.Timeout(), errors.Is(err, context.DeadlineExceeded):
+		return "the Miniserver did not answer in time"
+	case strings.Contains(err.Error(), "cloud dns"):
+		return "the Loxone cloud DNS did not give the Miniserver's address"
+	default:
+		return "the connection to the Miniserver failed"
+	}
+}

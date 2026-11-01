@@ -447,3 +447,23 @@ func TestHiddenRoomMembersAreNotCommanded(t *testing.T) {
 		t.Fatalf("group with a hidden-room member: %+v %v", s, err)
 	}
 }
+
+func TestSliderGridInsideRange(t *testing.T) {
+	o := strings.Replace(testOverlay, `{id: vent.supply, safety: control}`, `{id: vent.supply, safety: control, range: {min: 12.5, max: 20}}`, 1)
+	st := States{Map: testMap(t, o), Store: state.New(nil)}
+	d, _ := st.Map.Resolve("vent.supply")
+	v := 12.5
+	// the slider is 12..30 step 1: 12.5 rounds to 13 (inside), never to 12 (outside)
+	c, err := st.DeviceCommand(d, DeviceAction{Action: "set", Value: &v})
+	if err != nil || (c.Cmd != "13" && c.Cmd != "12.5") || c.Cmd == "12" {
+		t.Fatalf("%+v %v", c, err)
+	}
+}
+
+func TestMatchesWordPrefixes(t *testing.T) {
+	m := testMap(t, testOverlay)
+	d, _ := m.Resolve("house.water")
+	if !d.Matches("meter") || !d.Matches("wat") || d.Matches("ate") {
+		t.Fatal("prefix matching")
+	}
+}

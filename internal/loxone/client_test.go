@@ -208,17 +208,33 @@ func TestUnansweredCommandTimesOutAndReconnects(t *testing.T) {
 	}
 }
 
-func TestReadOnlyTokenStoreLeavesFile(t *testing.T) {
+func TestReadOnlyTokenStore(t *testing.T) {
 	ms := fakems.New(nil, nil)
 	defer ms.Close()
 	tokenFile := filepath.Join(t.TempDir(), "token.json")
-	c := loxone.New(loxone.Config{URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(), TokenFile: tokenFile, TokenReadOnly: true})
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { _ = c.Run(ctx); close(done) }()
-	defer func() { cancel(); <-done }()
-	waitReady(t, c)
-	if _, err := os.Stat(tokenFile); !os.IsNotExist(err) {
-		t.Fatalf("read-only store wrote the token file: %v", err)
+	ro := func() *loxone.Client {
+		c := loxone.New(loxone.Config{URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(),
+			TokenFile: tokenFile, TokenReadOnly: true, MaxBackoff: 50 * time.Millisecond, AuthFailBackoff: 50 * time.Millisecond})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { _ = c.Run(ctx); close(done) }()
+		t.Cleanup(func() { cancel(); <-done })
+		return c
+	}
+	// without a cached token, read-only never logs in with the password
+	c := ro()
+	wctx, wcancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer wcancel()
+	if err := c.WaitReady(wctx); err == nil || ms.Logins() != 0 {
+		t.Fatalf("read-only acquired a token: %v, logins %d", err, ms.Logins())
+	}
+	// with the owner's token it connects and leaves the file as it is
+	owner, _ := start(t, ms, tokenFile, fakems.Password)
+	waitReady(t, owner)
+	before, _ := os.ReadFile(tokenFile)
+	waitReady(t, ro())
+	after, _ := os.ReadFile(tokenFile)
+	if string(before) != string(after) || ms.Logins() != 1 {
+		t.Fatal("read-only client changed the token")
 	}
 }

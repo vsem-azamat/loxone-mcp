@@ -538,12 +538,19 @@ func (s States) Detail(d *Device) map[string]any {
 	return out
 }
 
-// Matches reports whether a free-text query occurs in the device's id, names, aliases,
-// description, tags or kind (folded, every word must occur).
+// Matches reports whether a free-text query matches the device's id, names, aliases,
+// description, tags or kind: every query word starts a word of them (folded).
 func (d *Device) Matches(query string) bool {
-	hay := normalize(strings.Join(append(append([]string{d.ID, d.Name, d.SourceName, d.Description, string(d.Kind), d.Room.Name}, d.Aliases...), d.Tags...), " "))
-	for _, w := range strings.Fields(normalize(query)) {
-		if !strings.Contains(hay, w) {
+	words := strings.Fields(normalize(strings.Join(append(append([]string{d.ID, d.Name, d.SourceName, d.Description, string(d.Kind), d.Room.Name}, d.Aliases...), d.Tags...), " ")))
+	for _, q := range strings.Fields(normalize(query)) {
+		found := false
+		for _, w := range words {
+			if strings.HasPrefix(w, q) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}

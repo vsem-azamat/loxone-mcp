@@ -3,11 +3,15 @@ package loxone
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestFormatUUID(t *testing.T) {
@@ -141,5 +145,27 @@ func TestWebsocketURL(t *testing.T) {
 	}
 	if _, err := websocketURL("ftp://x/"); err == nil {
 		t.Fatal("ftp accepted")
+	}
+}
+
+func TestErrorCategoryHidesAddresses(t *testing.T) {
+	err := &net.OpError{Op: "dial", Net: "tcp", Err: &net.DNSError{Err: "no such host", Name: "1-2-3-4.000000000000.dyndns.loxonecloud.com"}}
+	got := errorCategory(fmt.Errorf("websocket: Get \"wss://1-2-3-4.000000000000.dyndns.loxonecloud.com:4321/ws/rfc6455\": %w", err))
+	if strings.Contains(got, "1-2-3-4") || strings.Contains(got, "000000000000") || got != "the Miniserver address could not be resolved" {
+		t.Fatal(got)
+	}
+	if got := errorCategory(&CodeError{Command: "x", Code: 401}); got != "the Miniserver answered 401" {
+		t.Fatal(got)
+	}
+}
+
+func TestCommandWithoutConnectionFailsAtOnce(t *testing.T) {
+	c := New(Config{URL: "https://127.0.0.1:1/", User: "u", Password: "p"})
+	start := time.Now()
+	if _, err := c.Command(context.Background(), "00000000-0000-0000-ffff000000000000", "on"); err == nil {
+		t.Fatal("command without a connection")
+	}
+	if time.Since(start) > time.Second {
+		t.Fatal("waited for a connection")
 	}
 }
