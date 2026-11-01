@@ -11,6 +11,8 @@ A device may be changed only when all of these hold (`home.Device.Writable`):
 3. it needs no visualisation password (`isSecured`);
 4. a `value` device has a `range` in the overlay.
 
+Within a writable `option` device, the outputs listed in its `deny_options` are refused when the command is built, whatever spelling the caller uses.
+
 The Miniserver state can refuse more at the moment of the call: a control locked by the Miniserver (`jLocked` with `locked` other than 0), a blind that is locked or in a safety shutdown (only `stop` is sent then), a switch held on by logic. Writes are refused altogether while the Miniserver is disconnected, and when the Miniserver user is an administrator (`LOXONE_ALLOW_ADMIN=1` overrides): the token carries all of the user's rights, so the server expects a user limited to what it may control.
 
 ## Targets and scopes
