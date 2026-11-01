@@ -43,3 +43,7 @@ Configuration and the overlay format: [docs/configuration.md](docs/configuration
 ## Development
 
 `make check` runs what CI runs (repository policy, tidy, golangci-lint, tests with the race detector, govulncheck); `make release-check` builds a GoReleaser snapshot. Tests run against an anonymised structure file and a fake Miniserver, never a real one. Contributor rules: [AGENTS.md](AGENTS.md).
+
+## License
+
+[Apache License 2.0](LICENSE).

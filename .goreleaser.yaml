@@ -27,12 +27,14 @@ archives:
       group: root
       mode: 0755
     files:
-      - src: README.md
+      - src: LICENSE
         info: &file-info
           mtime: "{{ .CommitDate }}"
           owner: root
           group: root
           mode: 0644
+      - src: README.md
+        info: *file-info
       - src: examples/home.yaml
         info: *file-info
 

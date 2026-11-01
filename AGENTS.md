@@ -9,7 +9,7 @@ An MCP server (stdio, Go, `github.com/modelcontextprotocol/go-sdk`) that lets ag
 ## Rules
 
 - Everything in the repository is written in English and describes the current state: no plans, decision logs, status notes or scratch files.
-- Never commit anything that identifies a real installation: Miniserver serials, Remote Connect hosts, real UUIDs, room or device names, overlays, structure files, tokens or passwords. Tests use the anonymised fixture in `internal/fakems/testdata/` and the fake Miniserver; examples use made-up data. `make repo` checks the obvious cases.
+- The repository is public. Never commit anything that identifies a real installation: Miniserver serials, Remote Connect hosts, real UUIDs, room or device names, overlays, structure files, tokens or passwords. Tests use the anonymised fixture in `internal/fakems/testdata/` and the fake Miniserver; examples use made-up data. `make repo` checks the obvious cases.
 - Tests never call a real Miniserver. Live tests are manual; a live write moves something in someone's home and needs the owner's consent first.
 - The password, the token and hashes never reach logs or error messages. Commands are built from validated parts only; no caller text goes into a command path.
 - `AGENTS.md` is the only agent instruction file; do not add `CLAUDE.md` or tool-specific copies.
