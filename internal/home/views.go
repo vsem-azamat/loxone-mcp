@@ -50,12 +50,6 @@ func (s States) flag(d *Device, name string) (bool, bool) {
 	return n != 0, ok
 }
 
-// ZoneKnown reports whether the Miniserver has published its clock, so its zone is known.
-func (s States) ZoneKnown() bool {
-	v, ok := s.Store.Get(s.Map.GlobalStates["miniserverTime"])
-	return ok && v.IsText && parseZone(v.Text) != nil
-}
-
 // Zone is the Miniserver's time zone, taken from its clock state; the local zone when unknown.
 func (s States) Zone() *time.Location {
 	uuid := s.Map.GlobalStates["miniserverTime"]
@@ -83,17 +77,19 @@ func parseZone(s string) *time.Location {
 	return time.FixedZone("miniserver", off)
 }
 
-// FromMiniserver converts Miniserver seconds since 2009 (its local wall clock) to a time.
+// FromMiniserver converts Miniserver seconds since 2009 to a time in the Miniserver's zone.
 func (s States) FromMiniserver(sec float64) time.Time {
-	z := s.Zone()
-	return time.Date(2009, 1, 1, 0, 0, 0, 0, z).Add(time.Duration(sec) * time.Second)
+	return epoch2009.Add(time.Duration(sec) * time.Second).In(s.Zone())
 }
 
 // ToMiniserver converts a time to Miniserver seconds since 2009.
 func (s States) ToMiniserver(t time.Time) int64 {
-	z := s.Zone()
-	return int64(t.In(z).Sub(time.Date(2009, 1, 1, 0, 0, 0, 0, z)) / time.Second)
+	return int64(t.Sub(epoch2009) / time.Second)
 }
+
+// epoch2009 is the Miniserver's epoch. Its timestamps count seconds since 2009-01-01 00:00
+// UTC: a presence detector's activeSince matched its own log line (local time) only as UTC.
+var epoch2009 = time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC)
 
 func round1(f float64) float64 { return math.Round(f*10) / 10 }
 

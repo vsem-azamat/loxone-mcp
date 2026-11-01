@@ -241,9 +241,6 @@ func (s States) ClimateCommand(d *Device, a ClimateAction, now time.Time) (Comma
 	if (a.Action == "temperature" || a.Action == "override") && (minutes < 1 || minutes > MaxOverrideMinutes) {
 		return Command{}, fmt.Errorf("minutes must be 1..%d", MaxOverrideMinutes)
 	}
-	if (a.Action == "temperature" || a.Action == "override") && !s.ZoneKnown() {
-		return Command{}, errors.New("the Miniserver's clock is not known yet, so an end time cannot be computed; retry in a minute")
-	}
 	until := s.ToMiniserver(now.Add(time.Duration(minutes) * time.Minute))
 	switch a.Action {
 	case "temperature":
