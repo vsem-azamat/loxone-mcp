@@ -57,6 +57,15 @@ type Server struct {
 	logins    int
 	conns     []*websocket.Conn
 	structure []byte
+	lostKill  bool
+}
+
+// LoseKillToken makes the fake close the socket on killtoken without revoking the token, as
+// when the connection drops before the command arrives.
+func (s *Server) LoseKillToken() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lostKill = true
 }
 
 // New starts a fake Miniserver with initial states.
@@ -279,6 +288,9 @@ func (s *Server) handle(ctx context.Context, c *websocket.Conn) {
 		case strings.HasPrefix(cmd, "jdev/sys/killtoken/") && len(parts) == 5:
 			s.mu.Lock()
 			for tok := range s.tokens {
+				if s.lostKill {
+					break
+				}
 				if hmacHex(key, tok) == parts[3] {
 					delete(s.tokens, tok)
 				}

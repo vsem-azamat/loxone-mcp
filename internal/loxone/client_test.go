@@ -240,3 +240,21 @@ func TestReadOnlyTokenStore(t *testing.T) {
 		t.Fatal("read-only client changed the token")
 	}
 }
+
+func TestLogoutKeepsTokenWhenNotRevoked(t *testing.T) {
+	ms := fakems.New(nil, nil)
+	defer ms.Close()
+	tokenFile := filepath.Join(t.TempDir(), "token.json")
+	c, _ := start(t, ms, tokenFile, fakems.Password)
+	waitReady(t, c)
+	ms.LoseKillToken()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	before, _ := os.ReadFile(tokenFile)
+	if err := c.Logout(ctx); err == nil {
+		t.Fatal("logout reported success although the token is still valid")
+	}
+	if after, _ := os.ReadFile(tokenFile); string(after) != string(before) {
+		t.Fatal("the token file was cleared")
+	}
+}
