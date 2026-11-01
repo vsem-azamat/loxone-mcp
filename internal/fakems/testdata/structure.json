@@ -1,0 +1,147 @@
+{
+  "lastModified": "2026-01-02 03:04:05",
+  "msInfo": {
+    "serialNr": "000000000000",
+    "msName": "Example",
+    "projectName": "Example",
+    "languageCode": "ENG",
+    "location": "Example City",
+    "currentUser": {"name": "resident", "uuid": "00000000-0000-0000-ffff000000000001", "isAdmin": false}
+  },
+  "globalStates": {
+    "miniserverTime": "0f000000-0000-0001-ffff000000000001",
+    "operatingMode": "0f000000-0000-0002-ffff000000000001"
+  },
+  "operatingModes": {"0": "Holiday"},
+  "rooms": {
+    "01000000-0000-0001-ffff000000000001": {"uuid": "01000000-0000-0001-ffff000000000001", "name": "01 Living", "type": 0},
+    "01000000-0000-0002-ffff000000000001": {"uuid": "01000000-0000-0002-ffff000000000001", "name": "02 Bedroom", "type": 0},
+    "01000000-0000-0003-ffff000000000001": {"uuid": "01000000-0000-0003-ffff000000000001", "name": "Central", "type": 0},
+    "01000000-0000-0004-ffff000000000001": {"uuid": "01000000-0000-0004-ffff000000000001", "name": "Ventilation", "type": 0}
+  },
+  "cats": {
+    "02000000-0000-0001-ffff000000000001": {"uuid": "02000000-0000-0001-ffff000000000001", "name": "Lighting", "type": "lights"},
+    "02000000-0000-0002-ffff000000000001": {"uuid": "02000000-0000-0002-ffff000000000001", "name": "Shading", "type": "shading"}
+  },
+  "controls": {
+    "10000000-0000-0001-ffff000000000001": {
+      "name": "Light Living", "type": "LightControllerV2", "uuidAction": "10000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0001-ffff000000000001", "cat": "02000000-0000-0001-ffff000000000001",
+      "details": {"jLockable": true, "masterValue": "10000000-0000-0001-ffff000000000001/masterValue"},
+      "states": {
+        "jLocked": "10000000-0000-0001-ffff0000000000a1",
+        "activeMoods": "10000000-0000-0001-ffff0000000000a2",
+        "moodList": "10000000-0000-0001-ffff0000000000a3",
+        "favoriteMoods": "10000000-0000-0001-ffff0000000000a4",
+        "additionalMoods": "10000000-0000-0001-ffff0000000000a5"
+      },
+      "subControls": {
+        "10000000-0000-0001-ffff000000000001/AI1": {"name": "Ceiling", "type": "Switch", "uuidAction": "10000000-0000-0001-ffff000000000001/AI1", "states": {"active": "10000000-0000-0001-ffff0000000000b1"}}
+      }
+    },
+    "10000000-0000-0002-ffff000000000001": {
+      "name": "Light Bedroom", "type": "LightControllerV2", "uuidAction": "10000000-0000-0002-ffff000000000001",
+      "room": "01000000-0000-0002-ffff000000000001", "cat": "02000000-0000-0001-ffff000000000001",
+      "details": {"jLockable": true},
+      "states": {
+        "jLocked": "10000000-0000-0002-ffff0000000000a1",
+        "activeMoods": "10000000-0000-0002-ffff0000000000a2",
+        "moodList": "10000000-0000-0002-ffff0000000000a3",
+        "favoriteMoods": "10000000-0000-0002-ffff0000000000a4"
+      }
+    },
+    "10000000-0000-0003-ffff000000000001": {
+      "name": "All lights", "type": "CentralLightController", "uuidAction": "10000000-0000-0003-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001", "cat": "02000000-0000-0001-ffff000000000001",
+      "details": {"controls": [{"id": 0, "uuid": "10000000-0000-0001-ffff000000000001"}, {"id": 1, "uuid": "10000000-0000-0002-ffff000000000001"}]},
+      "states": {"jLocked": "10000000-0000-0003-ffff0000000000a1"}
+    },
+    "20000000-0000-0001-ffff000000000001": {
+      "name": "Blind left", "type": "Jalousie", "uuidAction": "20000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0001-ffff000000000001", "cat": "02000000-0000-0002-ffff000000000001",
+      "details": {"isAutomatic": true, "animation": 0, "type": 348},
+      "states": {
+        "jLocked": "20000000-0000-0001-ffff0000000000a1",
+        "up": "20000000-0000-0001-ffff0000000000a2", "down": "20000000-0000-0001-ffff0000000000a3",
+        "position": "20000000-0000-0001-ffff0000000000a4", "shadePosition": "20000000-0000-0001-ffff0000000000a5",
+        "safetyActive": "20000000-0000-0001-ffff0000000000a6", "autoActive": "20000000-0000-0001-ffff0000000000a7",
+        "locked": "20000000-0000-0001-ffff0000000000a8", "infoText": "20000000-0000-0001-ffff0000000000a9",
+        "targetPosition": "20000000-0000-0001-ffff0000000000aa"
+      }
+    },
+    "20000000-0000-0002-ffff000000000001": {
+      "name": "Blind left", "type": "Jalousie", "uuidAction": "20000000-0000-0002-ffff000000000001",
+      "room": "01000000-0000-0002-ffff000000000001", "cat": "02000000-0000-0002-ffff000000000001",
+      "details": {"isAutomatic": true, "animation": 0, "type": 348},
+      "states": {
+        "jLocked": "20000000-0000-0002-ffff0000000000a1",
+        "up": "20000000-0000-0002-ffff0000000000a2", "down": "20000000-0000-0002-ffff0000000000a3",
+        "position": "20000000-0000-0002-ffff0000000000a4", "shadePosition": "20000000-0000-0002-ffff0000000000a5",
+        "safetyActive": "20000000-0000-0002-ffff0000000000a6", "autoActive": "20000000-0000-0002-ffff0000000000a7",
+        "locked": "20000000-0000-0002-ffff0000000000a8", "infoText": "20000000-0000-0002-ffff0000000000a9",
+        "targetPosition": "20000000-0000-0002-ffff0000000000aa"
+      }
+    },
+    "20000000-0000-0003-ffff000000000001": {
+      "name": "All blinds", "type": "CentralJalousie", "uuidAction": "20000000-0000-0003-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001", "cat": "02000000-0000-0002-ffff000000000001",
+      "details": {"controls": [{"id": 0, "uuid": "20000000-0000-0001-ffff000000000001"}, {"id": 1, "uuid": "20000000-0000-0002-ffff000000000001"}]},
+      "states": {"jLocked": "20000000-0000-0003-ffff0000000000a1"}
+    },
+    "30000000-0000-0001-ffff000000000001": {
+      "name": "Room controller", "type": "IRoomControllerV2", "uuidAction": "30000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0001-ffff000000000001",
+      "details": {"timerModes": [{"name": "Comfort", "id": 1}, {"name": "Eco", "id": 0}, {"name": "Off", "id": 2}], "format": "%.1f°"},
+      "states": {
+        "jLocked": "30000000-0000-0001-ffff0000000000a1",
+        "tempActual": "30000000-0000-0001-ffff0000000000a2", "tempTarget": "30000000-0000-0001-ffff0000000000a3",
+        "comfortTemperature": "30000000-0000-0001-ffff0000000000a4", "humidityActual": "30000000-0000-0001-ffff0000000000a5",
+        "co2": "30000000-0000-0001-ffff0000000000a6", "activeMode": "30000000-0000-0001-ffff0000000000a7",
+        "operatingMode": "30000000-0000-0001-ffff0000000000a8", "overrideEntries": "30000000-0000-0001-ffff0000000000a9",
+        "openWindow": "30000000-0000-0001-ffff0000000000aa"
+      }
+    },
+    "40000000-0000-0001-ffff000000000001": {
+      "name": "Towel rail", "type": "Switch", "uuidAction": "40000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0002-ffff000000000001",
+      "states": {"jLocked": "40000000-0000-0001-ffff0000000000a1", "active": "40000000-0000-0001-ffff0000000000a2", "lockedOn": "40000000-0000-0001-ffff0000000000a3"}
+    },
+    "40000000-0000-0002-ffff000000000001": {
+      "name": "Storm protection", "type": "Switch", "uuidAction": "40000000-0000-0002-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001",
+      "states": {"jLocked": "40000000-0000-0002-ffff0000000000a1", "active": "40000000-0000-0002-ffff0000000000a2", "lockedOn": "40000000-0000-0002-ffff0000000000a3"}
+    },
+    "50000000-0000-0001-ffff000000000001": {
+      "name": "Fan speed", "type": "Radio", "uuidAction": "50000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0004-ffff000000000001",
+      "details": {"allOff": "OFF", "outputs": {"1": "MIN", "2": "LOW", "3": "NORMAL"}},
+      "states": {"jLocked": "50000000-0000-0001-ffff0000000000a1", "activeOutput": "50000000-0000-0001-ffff0000000000a2"}
+    },
+    "50000000-0000-0002-ffff000000000001": {
+      "name": "Supply air", "type": "Slider", "uuidAction": "50000000-0000-0002-ffff000000000001",
+      "room": "01000000-0000-0004-ffff000000000001",
+      "details": {"format": "%.1f", "min": 12.0, "max": 30.0, "step": 1.0},
+      "states": {"value": "50000000-0000-0002-ffff0000000000a1", "error": "50000000-0000-0002-ffff0000000000a2"}
+    },
+    "60000000-0000-0001-ffff000000000001": {
+      "name": "Water meter", "type": "TextState", "uuidAction": "60000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001",
+      "states": {"textAndIcon": "60000000-0000-0001-ffff0000000000a1"}
+    },
+    "70000000-0000-0001-ffff000000000001": {
+      "name": "Fire alarm", "type": "SmokeAlarm", "uuidAction": "70000000-0000-0001-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001",
+      "states": {"level": "70000000-0000-0001-ffff0000000000a1", "testAlarm": "70000000-0000-0001-ffff0000000000a2", "alarmCause": "70000000-0000-0001-ffff0000000000a3"}
+    },
+    "70000000-0000-0002-ffff000000000001": {
+      "name": "Door", "type": "Intercom", "uuidAction": "70000000-0000-0002-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001",
+      "states": {"bell": "70000000-0000-0002-ffff0000000000a1", "lastBellEvents": "70000000-0000-0002-ffff0000000000a2"}
+    },
+    "70000000-0000-0003-ffff000000000001": {
+      "name": "Presence", "type": "PresenceDetector", "uuidAction": "70000000-0000-0003-ffff000000000001",
+      "room": "01000000-0000-0003-ffff000000000001",
+      "states": {"active": "70000000-0000-0003-ffff0000000000a1", "activeSince": "70000000-0000-0003-ffff0000000000a2"}
+    }
+  }
+}
