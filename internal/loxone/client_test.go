@@ -213,8 +213,10 @@ func TestReadOnlyTokenStore(t *testing.T) {
 	defer ms.Close()
 	tokenFile := filepath.Join(t.TempDir(), "token.json")
 	ro := func() *loxone.Client {
-		c := loxone.New(loxone.Config{URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(),
-			TokenFile: tokenFile, TokenReadOnly: true, MaxBackoff: 50 * time.Millisecond, AuthFailBackoff: 50 * time.Millisecond})
+		c := loxone.New(loxone.Config{
+			URL: ms.URL, User: fakems.User, Password: fakems.Password, HTTPClient: ms.Client(),
+			TokenFile: tokenFile, TokenReadOnly: true, MaxBackoff: 50 * time.Millisecond, AuthFailBackoff: 50 * time.Millisecond,
+		})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { _ = c.Run(ctx); close(done) }()
