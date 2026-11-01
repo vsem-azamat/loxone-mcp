@@ -52,6 +52,7 @@ devices:
     safety: control
     tags: [ventilation]
     options: {"0": "off", "1": low, "2": normal, "3": high}
+    deny_options: ["0"] # agents may change the speed but never switch the fan off
 
   # a Slider is writable only with a range
   "00000000-0000-0050-ffff000000000000":

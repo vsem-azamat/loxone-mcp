@@ -504,10 +504,13 @@ func (s States) Detail(d *Device) map[string]any {
 			if o.SourceName != o.Name {
 				m["miniserver_name"] = o.SourceName
 			}
+			if d.denied[o.ID] {
+				m["allowed"] = false
+			}
 			opts = append(opts, m)
 		}
 		out["options"] = opts
-		if d.allOff != "" {
+		if d.allOff != "" && !d.denied[0] {
 			out["off_option"] = d.allOff
 		}
 	case KindValue:
@@ -609,9 +612,11 @@ func (d *Device) Actions() []string {
 	case KindOption:
 		names := make([]string, 0, len(d.options)+1)
 		for _, o := range d.options {
-			names = append(names, o.Name)
+			if !d.denied[o.ID] {
+				names = append(names, o.Name)
+			}
 		}
-		if d.allOff != "" {
+		if d.allOff != "" && !d.denied[0] {
 			names = append(names, d.allOff)
 		}
 		return []string{"set_device action=select option=<" + strings.Join(names, "|") + ">"}

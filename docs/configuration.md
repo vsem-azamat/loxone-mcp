@@ -51,6 +51,7 @@ A YAML file with two maps, keyed by the UUIDs of the structure file (`rooms` key
 | `overview` | `false` keeps the device out of `home_overview` |
 | `range` | `{min, max}`: for a climate device the temperatures agents may set (default 15..26 °C); for a value device the allowed values, within the slider's own bounds. A value device without `range` is read-only |
 | `options` | Names of a Radio's outputs by id; `"0"` names the all-off option |
+| `deny_options` | Radio output ids agents may not select (`"0"` is the all-off option), e.g. to keep a fan from being switched off; refused in code and left out of `actions` |
 | `moods` | Names of a light's moods by id (`778` is the static Off mood) |
 | `unit` | Unit shown with a value device |
 

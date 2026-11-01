@@ -312,12 +312,21 @@ func (s States) DeviceCommand(d *Device, a DeviceAction) (Command, error) {
 			return Command{}, errors.New("option is required")
 		}
 		cur, curOK := s.num(d, "activeOutput")
+		denied := func(id int, name string) error {
+			return fmt.Errorf("%q is not allowed for agents on %s (the home map forbids it); tell the user to use the Loxone app", name, d.ID)
+		}
 		if d.allOff != "" && (q == normalize(d.allOff) || q == "off" || q == "none" || q == "0") {
+			if d.denied[0] {
+				return Command{}, denied(0, d.allOff)
+			}
 			return Command{UUID: d.UUID, Cmd: "reset", NoChange: curOK && cur == 0}, nil
 		}
 		cands := map[string]string{}
 		for _, o := range d.options {
 			if q == normalize(o.Name) || q == normalize(o.SourceName) || q == strconv.Itoa(o.ID) {
+				if d.denied[o.ID] {
+					return Command{}, denied(o.ID, o.Name)
+				}
 				return Command{UUID: d.UUID, Cmd: strconv.Itoa(o.ID), NoChange: curOK && int(cur) == o.ID}, nil
 			}
 			cands[o.Name] = o.Name

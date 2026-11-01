@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -46,7 +47,9 @@ type DeviceOverlay struct {
 	Overview    *bool             `yaml:"overview"`
 	Range       *Range            `yaml:"range"`
 	Options     map[string]string `yaml:"options"` // Radio output id → name
-	Moods       map[string]string `yaml:"moods"`   // light mood id → name
+	// DenyOptions are Radio output ids agents may not select; "0" is the all-off option.
+	DenyOptions []string          `yaml:"deny_options"`
+	Moods       map[string]string `yaml:"moods"` // light mood id → name
 	Unit        string            `yaml:"unit"`
 }
 
@@ -121,6 +124,11 @@ func (o *Overlay) validate() error {
 		}
 		if d.Room != "" && !roomIDs[d.Room] {
 			errs = append(errs, fmt.Errorf("device %s: room %q is not a room id of the overlay", uuid, d.Room))
+		}
+		for _, id := range d.DenyOptions {
+			if _, err := strconv.Atoi(strings.TrimSpace(id)); err != nil {
+				errs = append(errs, fmt.Errorf("device %s: deny_options entry %q is not an option id", uuid, id))
+			}
 		}
 		for _, t := range d.Tags {
 			if strings.TrimSpace(t) == "" {

@@ -108,6 +108,7 @@ type Device struct {
 
 	options   []Option          // Radio outputs, ordered by id
 	allOff    string            // Radio: the label of "no output", "" when there is none
+	denied    map[int]bool      // Radio output ids agents may not select (0 = all off)
 	moodNames map[string]string // overlay names of light moods, by id
 	slider    sliderDetails
 	animation int // Jalousie: 0 = blinds with slats
@@ -321,6 +322,12 @@ func (m *Map) addDevice(c *structure.Control, ov DeviceOverlay, rooms map[string
 			m.Warnings = append(m.Warnings, err.Error())
 		}
 		d.allOff = cleanText(det.AllOff)
+		d.denied = map[int]bool{}
+		for _, id := range ov.DenyOptions {
+			if n, err := strconv.Atoi(strings.TrimSpace(id)); err == nil {
+				d.denied[n] = true
+			}
+		}
 		for k, v := range det.Outputs {
 			id, err := strconv.Atoi(k)
 			if err != nil {
