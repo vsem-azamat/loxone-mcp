@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directories: ["/"]
+    schedule: {interval: weekly}
+    groups:
+      go: {patterns: ["*"]}
+  - package-ecosystem: gomod
+    directories: ["/tools", "/tools/lint"]
+    schedule: {interval: weekly}
+    commit-message: {prefix: chore}
+    groups:
+      tools: {patterns: ["*"]}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+    commit-message: {prefix: chore}
+    groups:
+      actions: {patterns: ["*"]}

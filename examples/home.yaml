@@ -1,0 +1,76 @@
+# Example overlay with made-up UUIDs and names. Generate your own skeleton with
+# `loxone-mcp overlay-init > ~/.config/loxone-mcp/home.yaml` and edit it; keep it private.
+#
+# Keys are the Miniserver UUIDs of rooms and controls (uuidAction in LoxAPP3.json).
+# safety: control | read | hidden; anything not set is read.
+
+rooms:
+  "00000000-0000-0001-ffff000000000000":
+    id: living
+    name: Living room
+    aliases: [lounge, obývák]
+  "00000000-0000-0002-ffff000000000000":
+    id: bedroom
+    name: Bedroom
+    aliases: [ložnice]
+  "00000000-0000-0003-ffff000000000000":
+    id: house
+    name: Whole flat
+  "00000000-0000-0009-ffff000000000000":
+    id: service
+    name: Service
+    hidden: true # nothing in this room is shown to agents
+
+devices:
+  # a LightControllerV2: moods get English names; the Miniserver names still match
+  "00000000-0000-0010-ffff000000000000":
+    id: living.light
+    name: Living room lights
+    description: Ceiling lights of the kitchen, dining and living area.
+    aliases: [kitchen light, světlo obývák]
+    safety: control
+    moods: {"1": kitchen, "2": dining, "778": "off"}
+
+  # a Jalousie
+  "00000000-0000-0020-ffff000000000000":
+    id: bedroom.blind.left
+    name: Bedroom left blind
+    aliases: [levá žaluzie ložnice]
+    safety: control
+
+  # an IRoomControllerV2; range bounds the temperatures agents may set
+  "00000000-0000-0030-ffff000000000000":
+    id: bedroom.climate
+    name: Bedroom climate
+    safety: control
+    range: {min: 18, max: 25}
+
+  # a Radio: English option names; "0" names the all-off option
+  "00000000-0000-0040-ffff000000000000":
+    id: ventilation.speed
+    name: Ventilation speed
+    safety: control
+    tags: [ventilation]
+    options: {"0": "off", "1": low, "2": normal, "3": high}
+
+  # a Slider is writable only with a range
+  "00000000-0000-0050-ffff000000000000":
+    id: ventilation.supply-temperature
+    name: Supply air temperature
+    safety: control
+    unit: °C
+    range: {min: 16, max: 24}
+
+  # a Switch that agents may see but never change
+  "00000000-0000-0060-ffff000000000000":
+    id: house.storm-protection
+    name: Storm protection
+    description: Driven by the building's weather station.
+    safety: read
+
+  # a TextState meter: get_meters lists it, home_overview leaves it out
+  "00000000-0000-0070-ffff000000000000":
+    id: house.meter.water
+    name: Cold water meter
+    tags: [meter]
+    overview: false

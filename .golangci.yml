@@ -1,0 +1,97 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bidichk
+    - bodyclose
+    - contextcheck
+    - copyloopvar
+    - depguard
+    - errorlint
+    - forbidigo
+    - forcetypeassert
+    - gosec
+    - intrange
+    - misspell
+    - nilerr
+    - noctx
+    - nolintlint
+    - perfsprint
+    - revive
+    - sloglint
+    - unconvert
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+  settings:
+    depguard:
+      rules:
+        mcp-library:
+          list-mode: lax
+          deny:
+            - pkg: github.com/mark3labs/mcp-go
+              desc: github.com/modelcontextprotocol/go-sdk is the only MCP library
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: write to an io.Writer; only cmd/ prints
+        - pattern: ^os\.(Getenv|LookupEnv|Environ|Unsetenv)$
+          msg: only cmd/ reads the environment; pass values in
+        - pattern: ^log\.
+          pkg: ^log$
+          msg: use log/slog, not the standard log package
+    gosec:
+      excludes:
+        - G104 # unchecked errors: errcheck reports these
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unreachable-code
+        - name: var-declaration
+  exclusions:
+    generated: strict
+    presets:
+      - std-error-handling
+    rules:
+      # Tests read their own fixtures, assert freely and use made-up credentials.
+      - path: _test\.go$
+        linters: [gosec, forcetypeassert]
+      # The fake Miniserver is test code shipped as a package so several test packages share it.
+      - path: ^internal/fakems/
+        linters: [gosec]
+        text: G(101|115)
+      # The command is where output is printed and the environment is read.
+      - path: ^cmd/
+        linters: [forbidigo]
+        text: (fmt\.Print|os\.(Getenv|LookupEnv|Environ|Unsetenv))
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/vsem-azamat/loxone-mcp
+  exclusions:
+    generated: strict
